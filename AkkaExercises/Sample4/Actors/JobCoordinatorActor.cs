@@ -10,18 +10,15 @@ namespace AkkaExercises.Sample4.Actors
     // Assumes we only get one file per invocation of the console application
     internal class JobCoordinatorActor : ReceiveActor     
     {
-        private readonly IActorRef _paymentWorker;
+        private readonly IActorRef _paymentWorkerRouter;
         private int _numberOfRemainingPayments;
 
         public JobCoordinatorActor()
         {
-            //With RoundRobinGroup
-            _paymentWorker = Context.ActorOf(
-                Props.Empty.WithRouter(new RoundRobinGroup(
-                    "/user/PaymentWorker1", 
-				    "/user/PaymentWorker2", 
-				    "/user/PaymentWorker3"
-                    )));
+            //With RoundRobinPool
+            _paymentWorkerRouter = Context.ActorOf(
+                Props.Create<PaymentWorkerActor>()
+                .WithRouter(new RoundRobinPool(8/*, new DefaultResizer(8, 12)*/)), "some-pool");
 
             Receive<ProcessFileMessage>(
                 message =>
@@ -34,13 +31,9 @@ namespace AkkaExercises.Sample4.Actors
                 message =>
                 {
                     _numberOfRemainingPayments--;
-
                     var jobIsComplete = _numberOfRemainingPayments == 0;
-
                     if (jobIsComplete)
-                    {
                         Context.System.Terminate();
-                    }
                 });
         }
 
@@ -48,11 +41,9 @@ namespace AkkaExercises.Sample4.Actors
         private void StartNewJob(string fileName)
         {
             List<SendPaymentMessage> requests = ParseCsvFile(fileName);
-
             _numberOfRemainingPayments = requests.Count();
-
             foreach (var sendPaymentMessage in requests)
-                _paymentWorker.Tell(sendPaymentMessage);
+                _paymentWorkerRouter.Tell(sendPaymentMessage);
         }
 
 
