@@ -1,4 +1,5 @@
-﻿using Akka.Actor;
+﻿
+using Akka.Actor;
 using Akka.Event;
 using System;
 using System.Threading;
@@ -11,40 +12,43 @@ namespace AkkaExercises.Dojo
         {
             using (var actorSystem = ActorSystem.Create("PingPong"))
             {
-                IActorRef pongActor = actorSystem.ActorOf(Props.Create<PongActor>(),"pong");
-                IActorRef pingActor = actorSystem.ActorOf(Props.Create(() => new PingActor(pongActor)), "ping");
-
-                pingActor.Tell(new Pong());
+                actorSystem.ActorOf(Props.Create<PongActor>(), "pong1");
+                actorSystem.ActorOf(Props.Create<PongActor>(), "pong2");
+                actorSystem.ActorOf(Props.Create<PingActor>(), "ping");
                 Console.ReadLine();
             }
-
+            Console.ReadLine();
         }
 
     }
 
     public class PingActor : ReceiveActor
     {
-
+        private int _pongsReceived;
         private readonly ILoggingAdapter _logger = Context.GetLogger();
-        private readonly IActorRef _pong;
-        public PingActor(IActorRef pong)
+
+        public PingActor()
         {
-            _pong = pong;
+            Context.ActorSelection("/user/pong*").Tell(new Ping());
+
             Receive<Pong>(_ => {
-                _logger.Info("PING >>>>>");
+                _pongsReceived ++;
+                _logger.Info($"{_pongsReceived} PING >>>>>");
                 Thread.Sleep(TimeSpan.FromMilliseconds(300));
-                _pong.Tell(new Ping(), Self);
+                Sender.Tell(new Ping());
             });
         }
     }
 
     public class PongActor : ReceiveActor
     {
+        private int _pingsReceived;
         private readonly ILoggingAdapter _logger = Context.GetLogger();
         public PongActor()
         {
             Receive<Ping>(_ => {
-                _logger.Info("<<<<< PONG");
+                _pingsReceived++;
+                _logger.Warning($"<<<<< PONG {_pingsReceived}");
                 Thread.Sleep(TimeSpan.FromMilliseconds(300));
                 Sender.Tell(new Pong());
             });
@@ -53,8 +57,8 @@ namespace AkkaExercises.Dojo
 
 
     #region messages
-    public class Ping{}
-    public class Pong {}
+    public class Ping { }
+    public class Pong { }
     #endregion
 
 }
